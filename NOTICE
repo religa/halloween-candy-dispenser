@@ -1,0 +1,10 @@
+halloween-candy-dispenser: automatic Halloween candy dispenser for a Bambu Lab A1 mini
+Copyright 2026 religa
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It is an independent remodel of Brankly's Automatic Halloween Candy Dispenser
+(https://brankly.com/automatic-halloween-candy-dispenser/,
+https://github.com/branklyvideo/automatic-candy-dispenser). The original design's
+files (STL meshes, Arduino sketch, PCB) are not included in this repository and
+are not covered by this license.

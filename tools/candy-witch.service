@@ -1,0 +1,19 @@
+# systemd --user unit for voice/main.py; install with `make service` (fills @REPO@ and @UV@).
+# The P10S is main.py's default device. Restarts after anything the program can't recover from.
+[Unit]
+Description=Hazel the candy witch (voice/main.py)
+After=pipewire.service pipewire-pulse.service wireplumber.service
+Wants=pipewire-pulse.service
+StartLimitIntervalSec=0
+
+[Service]
+WorkingDirectory=@REPO@
+ExecStart=@UV@ run --env-file .env voice/main.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+# more than voice/hear.py's CLOSE_LIMIT (8 s), so pending transcript deletes finish
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

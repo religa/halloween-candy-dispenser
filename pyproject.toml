@@ -1,0 +1,42 @@
+[project]
+name = "halloween-candy-dispenser"
+version = "0.1.0"
+description = "3D-printable automatic candy dispenser for the Bambu Lab A1 mini: parametric build123d parts, Arduino firmware and a talking witch"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.13"
+dependencies = [
+    "anthropic>=1.13.0",
+    "build123d>=0.13.0",
+    "elevenlabs>=2.71.0",
+    "manifold3d>=3.5.4",
+    "matplotlib>=3.11.2",
+    "networkx>=3.7",
+    "pyserial>=3.5",
+    "rtree>=1.4.1",
+    "scipy>=1.18.1",
+    "shapely>=2.1.2",
+    "sounddevice>=0.5.6",
+    "ten-vad>=1.0.6.9",
+    "trimesh>=5.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["parts", "tests", "."]
+
+[tool.ruff]
+line-length = 170
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["voice"]  # sorted with the packages, as the code already is

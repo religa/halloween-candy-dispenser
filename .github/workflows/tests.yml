@@ -1,0 +1,21 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries (PortAudio for sounddevice, libc++ for ten-vad, OpenGL for the CAD kernel)
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2 libc++1 libgl1
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      # ref/ (the original design) isn't cloned, so the fit-against-ref tests skip;
+      # no API keys, so the live speech tests skip too.
+      - run: uv run pytest -q

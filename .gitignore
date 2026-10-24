@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.venv/
+
+# Tool caches and reports
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+tmp/
+.playwright-mcp/
+
+# Generated parts and previews (rebuild with the scripts in parts/)
+out/
+
+# Original design, cloned separately:
+#   git clone https://github.com/branklyvideo/automatic-candy-dispenser ref/automatic-candy-dispenser
+ref/
+
+# Working plans (local only); the published design docs live in docs/
+plans/
+
+# The Arduino IDE moves main.ino into a main/ folder of the same name
+arduino/main/
+
+# Voice logs: visitors' words (voice/main.py), never commit
+logs/
+
+# Generated audio (voice/fallback.py: Hazel's fallback lines from ElevenLabs), never commit
+cache/
+
+# API keys (ANTHROPIC_API_KEY, ELEVENLABS_API_KEY): never commit
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Claude Code local files (code-review reports, settings)
+.claude/
