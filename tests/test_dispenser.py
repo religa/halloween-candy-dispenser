@@ -368,6 +368,10 @@ def test_firmware_reports_distance_changes_from_the_ping_loop():
     assert re.search(r"const int MAX_CM = 200;", firmware)  # the user's 2 m, written out
 
 
+def test_one_ping_means_someone_is_here():
+    assert re.search(r"const int HERE_PINGS = 1;", FIRMWARE.read_text())  # the user's "twice as fast", written out
+
+
 def test_here_cm_matches_the_firmware():
     firmware = FIRMWARE.read_text()
     assert re.search(r"const int HERE_CM = 150;", firmware)  # 150 cm, written out

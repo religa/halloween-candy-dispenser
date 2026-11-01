@@ -190,7 +190,7 @@ The voice program (`voice/main.py`) uses it to greet each visitor and to end a v
 they walk away. Dispensing and the beam work the same with or without it.
 
 - With the Serial Monitor open (115200), `someone: HERE 85 cm` appears when you step in
-  front of it, and `someone: GONE` 10 s after you leave (`HERE` needs 2 s in front: it pings once a second). Tune `HERE_CM` in
+  front of it, and `someone: GONE` 10 s after you leave (`HERE` after 1 s in front: it pings once a second, `HERE_PINGS`). Tune `HERE_CM` in
   `arduino/main.ino` (150 cm) so a kid at the door triggers it and people on the pavement don't,
   and keep `HERE_CM` in `voice/dispenser.py` the same: the voice program uses it to tell whether
   anyone is in front (a test checks the two match).

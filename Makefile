@@ -11,7 +11,7 @@ UV := $(shell command -v uv)
 # the systemd --user unit `make service` installs from tools/candy-witch.service
 UNIT := $(HOME)/.config/systemd/user/candy-witch.service
 
-.PHONY: help lint format test verify compile upload monitor start service stop logs
+.PHONY: help lint format test verify compile upload monitor start service stop logs dispense
 
 help:
 	@echo "make lint      ruff: lint and check formatting"
@@ -25,6 +25,7 @@ help:
 	@echo "make service   run Hazel under systemd --user for the evening, restarted if it stops"
 	@echo "make stop      stop the service (before make start or make upload)"
 	@echo "make logs      follow the service's output (Ctrl-C stops watching, not Hazel)"
+	@echo "make dispense  drop one candy now, while Hazel runs (make start or make service)"
 
 lint:
 	uv run ruff check .
@@ -75,3 +76,9 @@ stop:
 
 logs:
 	journalctl --user -fu candy-witch
+
+# SIGUSR1 to voice/main.py's python only: its uv parent forwards the signal, so both would mean two
+# candies. Outside the candy rules; Hazel drops it between turns. With her stopped, use tools/dispense.py
+dispense:
+	@pkill -USR1 -f '/bin/python[0-9.]* voice/main\.py' || { echo "Hazel isn't running: with her stopped, use uv run tools/dispense.py"; exit 1; }
+	@echo "asked Hazel for a candy: make logs (service) or her terminal shows it"

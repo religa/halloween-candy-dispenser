@@ -100,7 +100,7 @@ class Brain:
         self.messages = []
 
     def new_visit(self) -> None:
-        """Forget the conversation and re-arm the candy allowance: the one place a visit resets."""
+        """Forget the conversation and reset the visit's candy state: the one place a visit resets."""
         self.messages = []
         self.rules.new_visit()
 
@@ -119,6 +119,7 @@ class Brain:
         may cover a slow first request (never a later round: the candy has dropped by then).
         anthropic errors propagate; the line stays in the history."""
         self.messages.append({"role": "user", "content": text})
+        self.rules.new_line()
         for n in range(1, MAX_TOOL_ROUNDS + 1):
             start, first = time.monotonic(), None
             slow = SlowTimer(self.on_slow if filler and n == 1 else None, self.slow_after)
@@ -156,7 +157,7 @@ class Brain:
                 if message.content and not tool_uses:
                     self.messages.append({"role": "assistant", "content": message.content})
                 return
-            if not spoke and not self.rules.attempted:  # silence while candy drops; not added to the history
+            if not spoke and self.rules.armed:  # silence while candy drops; not added to the history
                 log.info("tool call with no words before it: saying the fallback spell")
                 self.on_text(FALLBACK_SPELL)
             self.before_tool()

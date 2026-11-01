@@ -1,5 +1,5 @@
-"""Candy rules: one request per visit (up to MAX_GROUP candies), whatever the outcome, and a
-cooldown between requests, enforced in code."""
+"""Candy rules: one request per visitor line (up to MAX_GROUP candies), none after a failure until
+the next visit, and a cooldown between requests, enforced in code."""
 
 import ast
 from pathlib import Path
@@ -59,7 +59,7 @@ def test_first_request_dispenses():
     assert len(dispenser.calls) == 1
 
 
-def test_second_request_in_a_visit_is_refused():
+def test_second_request_for_one_line_is_refused():
     dispenser = StubDispenser()
     rules = CandyRules(dispenser)
     rules.request_candy()
@@ -67,11 +67,33 @@ def test_second_request_in_a_visit_is_refused():
     assert len(dispenser.calls) == 1
 
 
+def test_each_new_line_in_a_visit_can_ask_again():
+    dispenser = StubDispenser()
+    rules = clocked_rules(dispenser, FakeClock())
+    results = []
+    for _ in range(3):  # a big group taking turns: "trick or treat", "trick or treat", ...
+        rules.new_line()
+        results.append(rules.request_candy())
+    assert results == [GIVEN, GIVEN, GIVEN]
+    assert len(dispenser.calls) == 3
+
+
+def test_armed_until_asked_or_failed():
+    rules = clocked_rules(StubDispenser(Outcome.EMPTY), FakeClock())
+    assert rules.armed
+    rules.request_candy()
+    assert not rules.armed
+    rules.new_line()
+    assert not rules.armed  # failed this visit
+    rules.new_visit()
+    assert rules.armed
+
+
 def test_total_given_counts_across_visits():
     dispenser = StubDispenser()
     rules = clocked_rules(dispenser, FakeClock())
     rules.request_candy()
-    rules.request_candy()  # refused: already had one
+    rules.request_candy()  # refused: same line
     rules.new_visit()
     rules.request_candy(count=2)
     rules.new_visit()
@@ -93,6 +115,7 @@ def test_empty_bucket_is_reported_and_not_retried():
     dispenser = StubDispenser(Outcome.EMPTY)
     rules = CandyRules(dispenser)
     assert rules.request_candy() == "no candy: the bucket is empty"
+    rules.new_line()
     assert rules.request_candy() == NO_RETRY
     assert len(dispenser.calls) == 1
 
@@ -105,7 +128,26 @@ def test_dispenser_error_is_broken_and_logged(caplog):
     rules = CandyRules(StubDispenser(error=DispenserError("lost the Arduino: gone")))
     assert rules.request_candy() == BROKEN
     assert "lost the Arduino" in caplog.text
+    rules.new_line()
     assert rules.request_candy() == NO_RETRY
+
+
+def test_partial_group_ends_the_visits_candy():
+    dispenser = StubDispenser(script=[Outcome.CANDY, Outcome.EMPTY])
+    rules = clocked_rules(dispenser, FakeClock())
+    rules.request_candy(3)
+    rules.new_line()
+    assert rules.request_candy() == NO_RETRY
+    assert len(dispenser.calls) == 2
+
+
+def test_later_group_result_counts_only_its_own_candies():
+    dispenser = StubDispenser()
+    rules = clocked_rules(dispenser, FakeClock())
+    rules.request_candy(2)
+    rules.new_line()
+    dispenser.script = [Outcome.CANDY, Outcome.EMPTY]
+    assert rules.request_candy(3) == partial_given(1, 3, REPLY[Outcome.EMPTY])
 
 
 def test_every_outcome_has_a_reply():
@@ -138,7 +180,7 @@ def test_persona_forbids_writing_brackets():
 
 
 def test_persona_keeps_the_users_own_lines():
-    for line in ["one to two short sentences", "not related to halloween", "no more batches", "step back and come up again", "when in doubt, give the candy"]:
+    for line in ["one to two short sentences", "not related to halloween", "says the magic words again", "every kid must get candy", "when in doubt, give the candy"]:
         assert line in PERSONA
 
 
@@ -152,9 +194,9 @@ def test_count_is_capped_at_max_group(caplog):
     caplog.set_level("INFO", logger="voice.rules")
     dispenser = StubDispenser()
     result = CandyRules(dispenser).request_candy(99)
-    assert len(dispenser.calls) == 3  # the user's number, written out
-    assert result == group_given(3) + CAPPED
-    assert "asked for 99, capped at 3" in caplog.text
+    assert len(dispenser.calls) == 10  # the user's number, written out
+    assert result == group_given(10) + CAPPED
+    assert "asked for 99, capped at 10" in caplog.text
 
 
 @pytest.mark.parametrize("count", [None, "x", "3.7", 0, -2, True, [], float("inf")])
@@ -174,11 +216,11 @@ def test_numeric_strings_and_floats_are_truncated(count):
 def test_capped_string_count():
     dispenser = StubDispenser()
     assert CandyRules(dispenser).request_candy("99").endswith(CAPPED)
-    assert len(dispenser.calls) == 3
+    assert len(dispenser.calls) == 10
 
 
 def test_capped_suffix_on_a_failure():
-    assert CandyRules(StubDispenser(Outcome.EMPTY)).request_candy(10) == REPLY[Outcome.EMPTY] + CAPPED
+    assert CandyRules(StubDispenser(Outcome.EMPTY)).request_candy(11) == REPLY[Outcome.EMPTY] + CAPPED
 
 
 def test_group_stops_at_the_first_failure():
@@ -194,7 +236,7 @@ def test_group_dispenser_error_midway(caplog):
     assert len(dispenser.calls) == 2
 
 
-def test_second_group_request_in_a_visit_is_refused():
+def test_second_group_request_for_one_line_is_refused():
     dispenser = StubDispenser()
     rules = CandyRules(dispenser)
     rules.request_candy(3)
@@ -205,7 +247,7 @@ def test_second_group_request_in_a_visit_is_refused():
 def test_group_results_name_the_counts():
     assert group_given(3) == "candy given: candy came down the chute for all 3 kids"
     assert partial_given(1, 3, BROKEN) == f"candy given: candy came down the chute for 1 of the 3 kids, then {BROKEN}"
-    assert CAPPED == "; 3 is the most for one visit"
+    assert CAPPED == "; 10 is the most at a time"
 
 
 def test_cooldown_waits_out_the_rest(caplog):
@@ -265,7 +307,8 @@ def test_unexpected_error_mid_group_still_uses_up_the_visit_and_starts_the_coold
     rules = clocked_rules(dispenser, clock)
     with pytest.raises(RuntimeError):
         rules.request_candy(3)
-    assert rules.request_candy(3) == ALREADY
+    rules.new_line()
+    assert rules.request_candy(3) == NO_RETRY
     assert len(dispenser.calls) == 2
     rules.new_visit()
     clock.now = 5.0
@@ -298,7 +341,7 @@ def test_every_request_is_logged(caplog):
         "candy request: count 2",
         "dispensed: candy",
         "dispensed: candy",
-        "refused: already tried this visit",
+        "refused: already tried for this line",
     ]
 
 
@@ -312,3 +355,33 @@ def test_no_result_counts_the_candies():
 def test_persona_never_counts_the_candies():
     assert "Never say how many candies came down" in PERSONA
     assert "a candy dropped" not in PERSONA
+
+
+def test_manual_dispense_skips_the_rules():
+    clock = FakeClock()
+    dispenser = StubDispenser()
+    rules = clocked_rules(dispenser, clock)
+    rules.request_candy()  # the line is used up and the cooldown runs
+    assert rules.manual() == GIVEN
+    assert clock.slept == []
+    assert rules.request_candy() == ALREADY  # the visit's own state is untouched
+    rules.new_line()
+    assert rules.request_candy() == GIVEN
+    assert len(dispenser.calls) == 3
+    assert rules.total_given == 3
+
+
+def test_manual_dispense_starts_no_cooldown():
+    clock = FakeClock()
+    rules = clocked_rules(StubDispenser(), clock)
+    rules.manual()
+    rules.request_candy()
+    assert clock.slept == []
+
+
+def test_manual_dispense_reports_failures_without_ending_the_visit():
+    rules = CandyRules(StubDispenser(script=[Outcome.EMPTY, DispenserError("lost the Arduino: gone")]))
+    assert rules.manual() == REPLY[Outcome.EMPTY]
+    assert rules.manual() == BROKEN
+    assert rules.total_given == 0
+    assert rules.armed

@@ -133,10 +133,17 @@ def test_text_before_tool_then_candy_then_text():
     assert events == ["Bubble!", "<candy>", "Grab it!"]
 
 
-def test_second_tool_call_in_a_visit_is_refused():
+def test_each_line_in_a_visit_can_get_candy():
     brain, client, dispenser, _ = make_brain(TOOL_TURN, GRAB_TURN, turn(tool(id="toolu_2"), stop_reason="tool_use"), GRAB_TURN)
     brain.reply("trick or treat")
-    brain.reply("another one!")
+    brain.reply("trick or treat!")  # the next kid of a big group
+    assert len(dispenser.calls) == 2
+    assert client.requests[-1]["messages"][-1]["content"][-1]["content"] == GIVEN
+
+
+def test_second_tool_round_for_one_line_is_refused():
+    brain, client, dispenser, _ = make_brain(TOOL_TURN, turn(tool(id="toolu_2"), stop_reason="tool_use"), GRAB_TURN)
+    brain.reply("trick or treat")
     assert len(dispenser.calls) == 1
     assert client.requests[-1]["messages"][-1]["content"][-1]["content"] == ALREADY
 
@@ -253,7 +260,7 @@ def test_before_tool_is_not_called_without_a_tool_round():
 
 def test_tool_schema_max_is_max_group():
     count = TOOL["input_schema"]["properties"]["count"]
-    assert count["maximum"] == 3  # the user's number, written out
+    assert count["maximum"] == 10  # the user's number, written out
     assert count["maximum"] == MAX_GROUP
     assert TOOL["input_schema"]["required"] == ["count"]
 
@@ -318,11 +325,18 @@ def test_text_only_round_has_no_fallback():
 
 
 def test_refused_silent_tool_call_gets_no_fallback():
-    brain, _, dispenser, events = make_brain(TOOL_TURN, GRAB_TURN, turn(tool(id="toolu_2"), stop_reason="tool_use"), GRAB_TURN)
+    brain, _, dispenser, events = make_brain(TOOL_TURN, turn(tool(id="toolu_2"), stop_reason="tool_use"), GRAB_TURN)
     brain.reply("trick or treat")
-    brain.reply("another one!")
     assert FALLBACK_SPELL not in events  # no candy will drop: no spell promising one
     assert len(dispenser.calls) == 1
+
+
+def test_silent_tool_call_on_a_later_line_gets_the_fallback():
+    brain, _, dispenser, events = make_brain(TOOL_TURN, GRAB_TURN, turn(tool(id="toolu_2"), stop_reason="tool_use"), GRAB_TURN)
+    brain.reply("trick or treat")
+    brain.reply("trick or treat!")
+    assert FALLBACK_SPELL in events
+    assert len(dispenser.calls) == 2
 
 
 def test_tool_input_that_is_not_an_object_is_an_error_and_keeps_the_allowance():

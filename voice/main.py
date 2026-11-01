@@ -13,7 +13,8 @@ Usage:
 
 Needs ANTHROPIC_API_KEY, and ELEVENLABS_API_KEY (optionally ELEVENLABS_VOICE_ID) unless --text --mute
 (voice mode needs it to hear even with --mute), kept in the git-ignored .env and loaded by
-`uv run --env-file .env` (the code itself doesn't read .env). Ctrl-C = exit. Typed: /next = new
+`uv run --env-file .env` (the code itself doesn't read .env). Ctrl-C = exit. `make dispense`
+(SIGUSR1) drops one candy outside the candy rules: by voice between turns, typed after the next line. Typed: /next = new
 visitor, /quit or Ctrl-D = exit. By voice, Hazel greets at start-up and whenever the HC-SR04
 (when it's wired) sees someone walk up with no visit going, and handles a stream of visitors: a
 visit ends after quiet, or once the sensor sees them leave (voice/visits.py).
@@ -70,6 +71,7 @@ TICK = 0.25  # s of audio per listen() while nobody speaks: how often the sensor
 LOG_FORMAT = "%(asctime)s.%(msecs)03d %(levelname)-5s %(name)s: %(message)s"
 LOG_DIR = Path(__file__).resolve().parent.parent / "logs"  # git-ignored: it holds visitors' words
 SCREEN = "voice.screen"  # the logger for lines the terminal already shows: they go to the log file only
+MANUAL_SIGNAL = signal.SIGUSR1  # make dispense: one candy now, outside the candy rules
 
 log = logging.getLogger("voice.main")
 screen = logging.getLogger(SCREEN)
@@ -109,6 +111,24 @@ class Console(logging.Handler):
             self._mid_line = False
         except Exception:
             self.handleError(record)
+
+
+class ManualRequests:
+    """Candies asked for with MANUAL_SIGNAL. The handler only counts them; the main loop drops them
+    between turns, so the serial port keeps one caller at a time."""
+
+    def __init__(self):
+        self.pending = 0
+
+    def handler(self, signum, frame) -> None:
+        self.pending += 1
+
+    def take(self) -> int:
+        n, self.pending = self.pending, 0
+        return n
+
+
+MANUAL = ManualRequests()
 
 
 def pick_line(texts, recorded, last: str | None, choice=random.choice) -> str | None:
@@ -245,10 +265,11 @@ def answer(say, write=print, after_reply=lambda: None, on_result=lambda error: N
     write("")
 
 
-def chat(brain, read=input, write=print, after_reply=lambda: None, on_result=lambda error: None) -> None:
+def chat(brain, read=input, write=print, after_reply=lambda: None, on_result=lambda error: None, manual=lambda: None) -> None:
     """Typed visitor lines in, Hazel's replies out (streamed by the brain's on_text).
     after_reply runs after every reply, error or not (the speaker finishes talking); on_result
-    gets each reply's error or None."""
+    gets each reply's error or None. manual() drops the candies asked for with make dispense,
+    after each line read."""
     write(TYPED_GREETING)
     brain.new_visit()
     while True:
@@ -256,6 +277,7 @@ def chat(brain, read=input, write=print, after_reply=lambda: None, on_result=lam
             line = read("visitor> ").strip()
         except EOFError:
             break
+        manual()
         if line == "/quit":
             break
         if line == "/next":
@@ -283,6 +305,7 @@ def door(
     greet=None,
     alone=lambda: False,
     keep=lambda turn, outcome: None,
+    manual=lambda: None,
 ) -> None:
     """Voice mode: Hazel greets each arrival (and at start-up), answers each heard line, and visits
     end by time or the sensor. Every reply is followed by after_reply (the speaker drains), then
@@ -293,7 +316,8 @@ def door(
     its line at least every HEARTBEAT s while nothing happens. greet says
     the greeting (default brain.greet, the model's own words). alone() is True when nobody is
     there to talk to: a failed turn then gets no "ears" line. keep(turn, outcome) sees each turn
-    sent to speech-to-text (--keep-turns)."""
+    sent to speech-to-text (--keep-turns). manual() drops the candies asked for with make dispense,
+    between turns."""
     status = status or Status(write=lambda line: None)
     greet = greet or brain.greet
 
@@ -305,6 +329,7 @@ def door(
     def catch_up(greet_arrival: bool = True) -> None:
         """greet_arrival=False: a heard line waits, so its answer is the greeting (no greeting,
         then an answer to words said before it)."""
+        manual()
         if visits.expired():  # before the sensor's events: an arrival seen now starts a new visit
             write("-- visit over --")
             status.show()
@@ -395,12 +420,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--keep-turns", action="store_true", help="voice mode: save each turn as a WAV in tmp/turns/ (git-ignored)")
     args = parser.parse_args(argv)
     previous = signal.signal(signal.SIGTERM, stop)
+    previous_manual = signal.signal(MANUAL_SIGNAL, MANUAL.handler)  # its default would kill the program
     try:
         run(args)
     except KeyboardInterrupt:
         pass  # Ctrl-C or SIGTERM during a start-up wait: the cleanup has run, no traceback
     finally:
         signal.signal(signal.SIGTERM, previous)
+        signal.signal(MANUAL_SIGNAL, previous_manual)
 
 
 def run(args) -> None:
@@ -525,6 +552,12 @@ def run(args) -> None:
                 speaker.feed(s)
 
         rules = CandyRules(dispenser)
+        MANUAL.take()  # asked for before the port was open: too late to be wanted now
+
+        def manual() -> None:
+            for _ in range(MANUAL.take()):
+                console.write_line(f"(make dispense: {rules.manual()})")
+
         brain = Brain(
             client,
             rules,
@@ -557,7 +590,7 @@ def run(args) -> None:
                 log.info("keeping turns in tmp/turns/: visitors' voices, delete them after listening")
         try:
             if args.text:
-                chat(brain, after_reply=pause, write=console.write, on_result=on_result)
+                chat(brain, after_reply=pause, write=console.write, on_result=on_result, manual=manual)
             else:
                 door(
                     brain,
@@ -574,6 +607,7 @@ def run(args) -> None:
                     greet=greet,
                     alone=alone,
                     keep=keep,
+                    manual=manual,
                 )
         except KeyboardInterrupt:
             console.write("")

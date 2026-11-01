@@ -59,7 +59,7 @@ const unsigned long PING_INTERVAL_MS = 1000;  // the sensor needs >= 60 ms betwe
 const int MAX_CM = 200;     // farther counts as no echo: something stands ~2 m behind the door spot
 const unsigned long ECHO_TIMEOUT_US = MAX_CM * 58UL;  // stop listening for an echo from beyond MAX_CM
 const int HERE_CM = 150;  // voice/dispenser.py HERE_CM matches
-const int HERE_PINGS = 2;   // 2 s
+const int HERE_PINGS = 1;   // 1 s: one ping closer than HERE_CM is enough
 const int GONE_PINGS = 10;  // 10 s
 int lastCm = 0;             // the last ping's distance (0: no echo), for 'p'
 const int REPORT_STEP_CM = 50;   // "distance:" when the reading moves this much: someone stepping in or out

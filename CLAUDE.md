@@ -22,6 +22,7 @@ make compile                              # build arduino/main.ino for the Uno (
 make upload [PORT=...] | make monitor     # flash arduino/main.ino to the Uno | read its serial output (stop the service first)
 make start [ARGS="--text ..."]            # run voice/main.py in the terminal (Ctrl-C stops it; refuses while the service runs)
 make service | make stop | make logs      # voice/main.py under systemd --user (tools/candy-witch.service), restarted if it stops | stop it | follow its output
+make dispense                             # one candy now while voice/main.py runs (SIGUSR1; outside the candy rules)
 make help                                 # list the make targets
 uv run tools/inspect_stl.py <stl|dir>     # size, watertight, bodies, volume, PLA grams
 uv run tools/render.py <stl> -o <png>     # iso/front/top/side preview PNG

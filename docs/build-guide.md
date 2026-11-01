@@ -279,7 +279,7 @@ speed, timeout and back-spin, change `STEP_INTERVAL_US`, `MAX_SPIN_MS` and `BACK
 `voice/` is a Python program for a Mac or Linux computer on the porch. It listens with the microphone,
 answers in character as Hazel with Claude, speaks with an ElevenLabs voice, and asks the
 dispenser for candy when a kid says "trick or treat". The code, not the model, enforces
-the limits: one candy per kid, three per group, and a cooldown. Design and open checks:
+the limits: up to ten candies per "trick or treat", candy again each time it is said, and a cooldown. Design and open checks:
 [voice.md](voice.md).
 
 1. Get an [Anthropic API key](https://console.anthropic.com/) and an
@@ -316,6 +316,9 @@ On Linux, `make service` installs `tools/candy-witch.service` as a `systemd --us
 starts it, so nobody has to watch the laptop. Clone the repo to a path without spaces. It isn't
 enabled at login: `systemctl --user enable candy-witch` does that.
 
+- **Candy by hand:** `make dispense` drops one candy while Hazel runs (the service or `make start`),
+  outside the candy rules; it comes between her turns, and the log shows `(make dispense: ...)`.
+  With Hazel stopped, use `uv run tools/dispense.py` instead.
 - **Watch it:** `make logs` (`journalctl --user -fu candy-witch`). Besides Hazel's lines, it prints one
   status line at start-up, at the end of each visit, whenever something breaks or comes back, and
   every 15 minutes while nothing else prints it:

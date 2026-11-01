@@ -31,7 +31,7 @@ it prints on almost any 3D printer.
   Claude, and speaks with an ElevenLabs voice. A sonar sees each visitor walk up, so she
   greets them first.
 - **Candy on cue:** say "trick or treat" and she asks the dispenser for candy. Code, not
-  the model, enforces the limits: one candy per kid, three per group, and a cooldown.
+  the model, enforces the limits: up to ten candies per "trick or treat", candy again each time it is said, and a cooldown.
 - **Reliable dispensing:** a NEMA 23 stepper turns a slotted turntable until a candy cuts an
   IR break beam on the chute, then backs off. The candy slides down a drain pipe hidden in
   the witch's sleeve into her cauldron.
@@ -109,7 +109,8 @@ most 15 s), then it reverses for 1 s. The Uno case and the bucket are linked by 
 cable between two RJ45 screw-terminal adapters, plus a 110 V power cord carrying the 24 V. Full
 wiring, driver settings and a step-by-step first power-up: [docs/wiring.md](docs/wiring.md).
 
-To dispense from the computer: `uv run tools/dispense.py` (sends `d` over USB; `--count 3` for three in a row). Typing `d` in the Arduino Serial Monitor
+To dispense from the computer: `uv run tools/dispense.py` (sends `d` over USB; `--count 3` for three in a row);
+while Hazel runs, `make dispense` instead (she holds the port). Typing `d` in the Arduino Serial Monitor
 (115200 baud) does the same.
 
 ## Quick start

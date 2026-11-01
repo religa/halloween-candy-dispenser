@@ -29,6 +29,7 @@ from voice.dispenser import Dispenser, DispenserError, Outcome, Presence
 from voice.fallback import FILLERS, GREETINGS, LINES
 from voice.hear import CLOSE_LIMIT, MicError, SilentMic, Turn
 from voice.main import (
+    MANUAL,
     TICK,
     VOICE_GREETING,
     Console,
@@ -103,7 +104,7 @@ class FakeBrain:
             self.replies.append(f"<greeted:{said}>")
 
 
-def run_chat(brain, lines, out=None, after_reply=lambda: None):
+def run_chat(brain, lines, out=None, after_reply=lambda: None, manual=lambda: None):
     """Feed lines to chat() as typed input, then EOF; return everything it wrote."""
     lines = iter(lines)
     out = [] if out is None else out
@@ -114,7 +115,7 @@ def run_chat(brain, lines, out=None, after_reply=lambda: None):
         except StopIteration:
             raise EOFError from None
 
-    chat(brain, read, lambda *a, end="\n": out.append("".join(map(str, a)) + end), after_reply=after_reply)
+    chat(brain, read, lambda *a, end="\n": out.append("".join(map(str, a)) + end), after_reply=after_reply, manual=manual)
     return "".join(out)
 
 
@@ -1574,3 +1575,72 @@ def test_p10s_not_back_after_the_rescan_wait_exits_1(monkeypatch):
     with pytest.raises(SystemExit) as exit:
         run_mic_loss(monkeypatch, [], rescan=never_back)
     assert exit.value.code == 1
+
+
+MAKEFILE = Path(__file__).resolve().parent.parent / "Makefile"
+
+
+def test_manual_signal_is_counted_and_taken(monkeypatch):
+    monkeypatch.setattr(MANUAL, "pending", 0)
+    old = signal.signal(signal.SIGUSR1, MANUAL.handler)
+    try:
+        os.kill(os.getpid(), signal.SIGUSR1)
+        os.kill(os.getpid(), signal.SIGUSR1)
+        time.sleep(0.05)
+    finally:
+        signal.signal(signal.SIGUSR1, old)
+    assert MANUAL.take() == 2
+    assert MANUAL.take() == 0
+
+
+def test_main_handles_sigusr1_while_running_then_restores_it(monkeypatch):
+    seen = []
+
+    def during(*args, **kwargs):
+        seen.append(signal.getsignal(signal.SIGUSR1))
+
+    def previous(signum, frame):
+        pass
+
+    old = signal.signal(signal.SIGUSR1, previous)
+    try:
+        run_main_door(monkeypatch, ["--fake-dispenser", "candy"], during=during)
+        assert signal.getsignal(signal.SIGUSR1) is previous
+    finally:
+        signal.signal(signal.SIGUSR1, old)
+    assert seen == [MANUAL.handler]  # SIGUSR1's default would end the program
+
+
+def test_make_dispense_drops_the_candies_asked_for(monkeypatch):
+    seen = []
+
+    def during(listener, brain, *args, manual, write, **kwargs):
+        MANUAL.pending = 2
+        manual()
+        manual()  # nothing more asked for
+        seen.append(brain.rules.total_given)
+
+    monkeypatch.setattr(MANUAL, "pending", 0)
+    run_main_door(monkeypatch, ["--fake-dispenser", "candy"], during=during)
+    assert seen == [2]
+
+
+def test_door_checks_for_manual_candy_every_tick():
+    calls = []
+    run_door(ticks(1.0), manual=lambda: calls.append("manual"))
+    assert len(calls) >= round(1.0 / TICK)
+
+
+def test_chat_checks_for_manual_candy_after_each_line():
+    calls = []
+    run_chat(FakeBrain(), ["a", "/next", "b"], manual=lambda: calls.append("manual"))
+    assert len(calls) == 3
+
+
+def test_make_dispense_signals_only_the_python_process():
+    pattern = re.search(r"pkill -USR1 -f '([^']+)'", MAKEFILE.read_text()).group(1)
+    # as pgrep -af shows them under make start (the service's are the same)
+    assert re.search(pattern, "/home/me/candy/.venv/bin/python voice/main.py --keep-turns")
+    assert re.search(pattern, "/home/me/candy/.venv/bin/python3.13 voice/main.py")
+    assert not re.search(pattern, "uv run --env-file .env voice/main.py --keep-turns")  # uv forwards it: two candies
+    assert not re.search(pattern, "/bin/sh -c pkill -USR1 -f '/bin/python[0-9.]* voice/main\\.py'")
